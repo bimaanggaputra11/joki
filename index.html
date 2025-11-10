@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Anime Generator - Transform Your Images</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="20" cy="20" r="18" stroke="url(#gradient)" stroke-width="2"/>
+                    <path d="M20 10L25 20L20 30L15 20L20 10Z" fill="url(#gradient)"/>
+                    <defs>
+                        <linearGradient id="gradient" x1="0" y1="0" x2="40" y2="40">
+                            <stop offset="0%" style="stop-color:#FF6B9D"/>
+                            <stop offset="100%" style="stop-color:#C371F5"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span>AnimeAI</span>
+            </div>
+            <nav class="nav">
+                <a href="#" class="nav-link active">Generate</a>
+                <a href="#" class="nav-link">Gallery</a>
+                <a href="#" class="nav-link">About</a>
+            </nav>
+        </header>
+
+        <!-- Hero Section -->
+        <section class="hero">
+            <h1 class="hero-title">Transform Your Images into <span class="gradient-text">Anime Art</span></h1>
+            <p class="hero-subtitle">Upload any image and watch as AI transforms it into stunning anime-style artwork featuring beautiful female characters</p>
+        </section>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Upload Section -->
+            <div class="upload-section" id="uploadSection">
+                <div class="upload-box" id="uploadBox">
+                    <input type="file" id="fileInput" accept="image/*" hidden>
+                    <div class="upload-content">
+                        <div class="upload-icon">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                        </div>
+                        <h3>Upload Your Image</h3>
+                        <p>Click to browse or drag and drop</p>
+                        <span class="upload-formats">PNG, JPG, WEBP up to 10MB</span>
+                    </div>
+                </div>
+
+                <!-- Preview Section -->
+                <div class="preview-section hidden" id="previewSection">
+                    <div class="image-preview">
+                        <img id="previewImage" src="" alt="Preview">
+                        <div class="preview-overlay">
+                            <button class="btn-change" id="changeImageBtn">Change Image</button>
+                        </div>
+                    </div>
+                    <div class="color-palette" id="colorPalette">
+                        <h4>Detected Colors</h4>
+                        <div class="colors" id="colorsDisplay"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generate Button -->
+            <div class="generate-section hidden" id="generateSection">
+                <button class="btn-generate" id="generateBtn">
+                    <span>Generate Anime Art</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Loading Section -->
+            <div class="loading-section hidden" id="loadingSection">
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Creating your anime masterpiece...</p>
+                <p class="loading-subtext">This may take 30-60 seconds</p>
+            </div>
+
+            <!-- Result Section -->
+            <div class="result-section hidden" id="resultSection">
+                <h2 class="result-title">Your Anime Transformation</h2>
+                <div class="result-grid">
+                    <div class="result-card">
+                        <h3>Original</h3>
+                        <img id="originalImage" src="" alt="Original">
+                    </div>
+                    <div class="result-arrow">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                            <polyline points="12 5 19 12 12 19"/>
+                        </svg>
+                    </div>
+                    <div class="result-card">
+                        <h3>Anime Style</h3>
+                        <img id="resultImage" src="" alt="Result">
+                        <button class="btn-download" id="downloadBtn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            Download
+                        </button>
+                    </div>
+                </div>
+                <button class="btn-generate-again" id="generateAgainBtn">Generate Another</button>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Powered by AI • Made with ❤️ for anime lovers</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
