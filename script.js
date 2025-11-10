@@ -1,12 +1,6 @@
 // Configuration
 const CONFIG = {
-    // Backend proxy server (untuk bypass CORS)
-    apiEndpoint: 'http://localhost:3000/api',
-    
-    // Legacy config (tidak dipakai lagi karena pakai backend proxy)
-    replicateToken: 'YOUR_REPLICATE_API_TOKEN_HERE',
-    modelVersion: 'cfd0f86fbcd03df45fca7ce83af9bb9c07850a3317303fe8dcf677038541db8a',
-    
+    backendUrl: 'http://localhost:3000/api', // Backend proxy URL
     maxFileSize: 10 * 1024 * 1024, // 10MB
     allowedFormats: ['image/jpeg', 'image/png', 'image/webp'],
     pollInterval: 2000, // Check status setiap 2 detik
@@ -15,17 +9,7 @@ const CONFIG = {
 
 // Anime generation prompt template optimized for Animagine XL V4
 const ANIME_PROMPT_TEMPLATE = `
-1girl, solo, beautiful detailed anime girl, 
-expressive large eyes, detailed face, beautiful detailed hair,
-elegant feminine pose, graceful, 
-detailed clothing, intricate outfit design,
-soft lighting, vibrant colors matching palette: {colors},
-dominant color scheme: {mainColor},
-full body, standing,
-masterpiece, best quality, highly detailed, ultra detailed,
-4k, high resolution, perfect anatomy,
-modern anime style, professional illustration,
-detailed background, depth of field
+A beautiful anime waifu version of the attached person, extract dominant colors from reference: hair, eyes, clothing -- keep facial features accurate, cute anime girl, detailed eyes, soft blush, flowing hair, masterpiece, anime key visual, by Makoto Shinkai --ar 2:3 --v 5
 `;
 
 // Global state
@@ -262,10 +246,33 @@ function rgbToHsl(r, g, b) {
     };
 }
 
+// Check backend health
+async function checkBackendHealth() {
+    try {
+        const response = await fetch(`${CONFIG.backendUrl}/health`);
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        return null;
+    }
+}
+
 // Generate anime art
 async function handleGenerate() {
     if (!uploadedImage || extractedColors.length === 0) {
         alert('Silakan upload gambar terlebih dahulu!');
+        return;
+    }
+    
+    // Check backend health
+    const health = await checkBackendHealth();
+    if (!health) {
+        alert('⚠️ Backend server tidak berjalan!\n\nJalankan server dengan:\nnpm start\n\nAtau:\nnode server.js');
+        return;
+    }
+    
+    if (!health.configured) {
+        alert('⚠️ API Token belum dikonfigurasi!\n\nBuat file .env dengan:\nREPLICATE_API_TOKEN=your_token_here\n\nLalu restart server.');
         return;
     }
     
@@ -285,150 +292,114 @@ async function handleGenerate() {
             .replace('{colors}', colorStrings)
             .replace('{mainColor}', mainColor);
         
+        console.log('🎨 Generated prompt:', prompt);
+        
         // Call API untuk generate
-        const result = await generateAnimeWithAPI(uploadedImage, prompt);
+        const result = await generateAnimeWithBackend(prompt);
         
         // Show result
         if (result && result.output) {
-            resultImage.src = Array.isArray(result.output) ? result.output[0] : result.output;
+            const imageUrl = Array.isArray(result.output) ? result.output[0] : result.output;
+            resultImage.src = imageUrl;
             loadingSection.classList.add('hidden');
             resultSection.classList.remove('hidden');
+            console.log('✅ Generation successful!');
         } else {
-            throw new Error('Failed to generate image');
+            throw new Error('No output from API');
         }
         
     } catch (error) {
-        console.error('Generation error:', error);
-        alert('Terjadi kesalahan saat membuat gambar. Silakan coba lagi!');
+        console.error('❌ Generation error:', error);
+        let errorMessage = 'Terjadi kesalahan saat membuat gambar.';
+        
+        if (error.message.includes('Backend')) {
+            errorMessage = '⚠️ Backend server error!\n\nPastikan server berjalan dengan: npm start';
+        } else if (error.message.includes('401')) {
+            errorMessage = '⚠️ API Token tidak valid!\n\nPeriksa token di file .env';
+        } else if (error.message.includes('402')) {
+            errorMessage = '⚠️ Kredit Replicate habis!\n\nSilakan top-up di Replicate.com';
+        }
+        
+        alert(errorMessage);
         loadingSection.classList.add('hidden');
         generateSection.classList.remove('hidden');
     }
 }
 
-// API Integration untuk generate anime menggunakan Backend Proxy
-async function generateAnimeWithAPI(imageData, prompt) {
+// API Integration melalui backend proxy
+async function generateAnimeWithBackend(prompt) {
+    console.log('📡 Calling backend proxy...');
+    
     try {
-        console.log('Sending request to backend proxy...');
-        
-        // Step 1: Create prediction via backend proxy
-        const response = await fetch(`${CONFIG.apiEndpoint}/generate`, {
+        // Step 1: Create prediction via backend
+        const createResponse = await fetch(`${CONFIG.backendUrl}/generate`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                prompt: prompt,
-                negativePrompt: 'nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, ugly, duplicate, morbid, mutilated, extra limbs, deformed, disfigured'
-            })
+            body: JSON.stringify({ prompt })
         });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Backend proxy error: ${response.status} - ${errorText}`);
+        
+        if (!createResponse.ok) {
+            const errorData = await createResponse.json();
+            throw new Error(errorData.message || 'Backend error');
         }
-
-        const prediction = await response.json();
+        
+        const prediction = await createResponse.json();
         currentPredictionId = prediction.id;
         
-        console.log('Prediction created:', prediction.id);
-
-        // Step 2: Poll for result via backend proxy
-        return await pollForResult(prediction.id);
-
+        console.log('⏳ Prediction created:', prediction.id);
+        console.log('⏳ Waiting for result...');
+        
+        // Step 2: Poll for result
+        return await pollBackendForResult(prediction.id);
+        
     } catch (error) {
-        console.error('API Error:', error);
-        
-        // Check jika backend server tidak running
-        if (error.message.includes('Failed to fetch')) {
-            alert('⚠️ Backend server tidak terdeteksi!\n\nJalankan server dulu dengan: npm start\n\nLihat README.md untuk instruksi lengkap.');
-            throw new Error('Backend server is not running. Please start the server with: npm start');
-        }
-        
-        // Fallback: Return demo result
-        console.log('Falling back to demo mode...');
-        return await createDemoResult(imageData);
+        console.error('❌ Backend Error:', error);
+        throw error;
     }
 }
 
-// Poll API untuk mendapatkan hasil via backend proxy
-async function pollForResult(predictionId) {
+// Poll backend untuk mendapatkan hasil
+async function pollBackendForResult(predictionId) {
     let attempts = 0;
     
     while (attempts < CONFIG.maxPollAttempts) {
         await new Promise(resolve => setTimeout(resolve, CONFIG.pollInterval));
         
-        const response = await fetch(`${CONFIG.apiEndpoint}/prediction/${predictionId}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
+        try {
+            const response = await fetch(`${CONFIG.backendUrl}/status/${predictionId}`);
+            
+            if (!response.ok) {
+                throw new Error(`Backend error: ${response.status}`);
             }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Poll error: ${response.status}`);
+            
+            const prediction = await response.json();
+            
+            console.log(`⏳ Status check ${attempts + 1}/${CONFIG.maxPollAttempts}: ${prediction.status}`);
+            
+            if (prediction.status === 'succeeded') {
+                console.log('✅ Generation completed!');
+                return prediction;
+            }
+            
+            if (prediction.status === 'failed') {
+                throw new Error(prediction.error || 'Prediction failed');
+            }
+            
+            if (prediction.status === 'canceled') {
+                throw new Error('Prediction was canceled');
+            }
+            
+            attempts++;
+            
+        } catch (error) {
+            console.error('❌ Poll error:', error);
+            throw error;
         }
-        
-        const prediction = await response.json();
-        
-        console.log(`Polling attempt ${attempts + 1}: ${prediction.status}`);
-        
-        if (prediction.status === 'succeeded') {
-            console.log('Generation completed!');
-            return prediction;
-        }
-        
-        if (prediction.status === 'failed') {
-            throw new Error('Prediction failed: ' + (prediction.error || 'Unknown error'));
-        }
-        
-        attempts++;
     }
     
-    throw new Error('Timeout waiting for result');
-}
-
-// Demo result (fallback ketika API tidak tersedia)
-async function createDemoResult(imageData) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = function() {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            canvas.width = img.width;
-            canvas.height = img.height;
-            
-            // Draw original image
-            ctx.drawImage(img, 0, 0);
-            
-            // Apply anime-style filter effect (simplified)
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            
-            // Increase saturation and contrast
-            for (let i = 0; i < data.length; i += 4) {
-                // Increase contrast
-                data[i] = Math.min(255, data[i] * 1.2);     // R
-                data[i + 1] = Math.min(255, data[i + 1] * 1.2); // G
-                data[i + 2] = Math.min(255, data[i + 2] * 1.2); // B
-            }
-            
-            ctx.putImageData(imageData, 0, 0);
-            
-            // Add text overlay
-            ctx.fillStyle = 'rgba(255, 107, 157, 0.1)';
-            ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
-            ctx.fillStyle = '#FF6B9D';
-            ctx.font = 'bold 24px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('DEMO MODE - Configure API for real AI generation', canvas.width / 2, canvas.height - 25);
-            
-            resolve({
-                output: canvas.toDataURL('image/png')
-            });
-        };
-        img.src = imageData;
-    });
+    throw new Error('Timeout: Generation took too long (over 2 minutes)');
 }
 
 // Download result
@@ -454,7 +425,25 @@ function resetToUpload() {
 }
 
 // Initialize
-console.log('%c🎨 Anime AI Generator initialized', 'color: #FF6B9D; font-size: 16px; font-weight: bold');
-console.log('%c📡 Backend proxy mode enabled', 'color: #C371F5; font-size: 14px');
-console.log('%cℹ️  Make sure to run: npm start', 'color: #667eea; font-size: 12px');
-console.log('%cℹ️  Configure API token in server.js', 'color: #667eea; font-size: 12px');
+async function init() {
+    console.log('🎨 Anime AI Generator initialized');
+    console.log('📡 Backend proxy mode');
+    
+    const health = await checkBackendHealth();
+    
+    if (!health) {
+        console.warn('⚠️  Backend server not running!');
+        console.log('📝 Start server with: npm start');
+    } else {
+        console.log('✅ Backend server connected');
+        if (health.configured) {
+            console.log('✅ API Token configured');
+            console.log('🚀 Ready to generate anime art!');
+        } else {
+            console.warn('⚠️  API Token not configured');
+            console.log('📝 Create .env file with: REPLICATE_API_TOKEN=your_token_here');
+        }
+    }
+}
+
+init();
